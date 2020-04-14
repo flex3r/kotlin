@@ -7,21 +7,15 @@ package org.jetbrains.kotlin.idea.scripting.gradle
 
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.externalSystem.util.ExternalSystemApiUtil
-import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.projectRoots.Sdk
-import com.intellij.openapi.roots.ModuleRootManager
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.vfs.VirtualFile
-import com.intellij.psi.search.GlobalSearchScope
 import org.jetbrains.kotlin.idea.core.script.ScriptDefinitionsManager
 import org.jetbrains.kotlin.idea.core.script.configuration.ScriptingSupport
 import org.jetbrains.kotlin.idea.core.script.configuration.ScriptingSupportHelper
 import org.jetbrains.kotlin.idea.core.script.configuration.listener.ScriptConfigurationUpdater
 import org.jetbrains.kotlin.idea.core.script.configuration.utils.ScriptClassRootsCache
-import org.jetbrains.kotlin.idea.core.script.configuration.utils.ScriptClassRootsCache.Companion.isAlreadyIndexed
 import org.jetbrains.kotlin.idea.core.script.configuration.utils.ScriptClassRootsIndexer
-import org.jetbrains.kotlin.idea.core.script.configuration.utils.ScriptClassRootsStorage
 import org.jetbrains.kotlin.idea.scripting.gradle.importing.GradleKtsContext
 import org.jetbrains.kotlin.idea.scripting.gradle.importing.KotlinDslScriptModel
 import org.jetbrains.kotlin.idea.scripting.gradle.importing.toScriptConfiguration
@@ -83,18 +77,14 @@ class GradleScriptingSupport(val project: Project) : ScriptingSupport() {
     fun replace(context: GradleKtsContext, models: List<KotlinDslScriptModel>) {
         KotlinDslScriptModels.write(project, models)
 
-        val old = configuration
         val newConfiguration = Configuration(context, models)
 
         configuration = newConfiguration
 
-        configurationChangedCallback(old, newConfiguration)
+        configurationChangedCallback(newConfiguration)
     }
 
-    private fun configurationChangedCallback(
-        old: Configuration?,
-        newConfiguration: Configuration
-    ) {
+    private fun configurationChangedCallback(newConfiguration: Configuration) {
         rootsIndexer.transaction {
             if (classpathRoots.hasNotCachedRoots(GradleClassRootsCache.extractRoots(newConfiguration))) {
                 rootsIndexer.markNewRoot()
@@ -127,7 +117,7 @@ class GradleScriptingSupport(val project: Project) : ScriptingSupport() {
 
         configuration = newConfiguration
 
-        configurationChangedCallback(null, newConfiguration)
+        configurationChangedCallback(newConfiguration)
     }
 
     init {
@@ -164,8 +154,7 @@ class GradleScriptingSupport(val project: Project) : ScriptingSupport() {
     }
 
     override fun clearCaches() {
-        // todo: should we drop configuration when script definitions changed?
-        //configuration = null
+        // todo should clear up to date
     }
 
     override fun hasCachedConfiguration(file: KtFile): Boolean =

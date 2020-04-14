@@ -19,9 +19,9 @@ import org.jetbrains.kotlin.idea.debugger.coroutine.proxy.SkipCoroutineStackFram
 
 class CoroutineStackFrameInterceptor(val project: Project) : StackFrameInterceptor {
     override fun createStackFrame(frame: StackFrameProxyImpl, debugProcess: DebugProcessImpl, location: Location): XStackFrame? =
-        if (debugProcess.xdebugProcess?.session is XDebugSessionImpl &&
-	    frame !is SkipCoroutineStackFrameProxyImpl &&
-            AsyncStacksToggleAction.isAsyncStacksEnabled(debugProcess.xdebugProcess?.session as XDebugSessionImpl)
+        if (debugProcess.xdebugProcess?.session is XDebugSessionImpl
+            && frame !is SkipCoroutineStackFrameProxyImpl
+            && AsyncStacksToggleAction.isAsyncStacksEnabled(debugProcess.xdebugProcess?.session as XDebugSessionImpl)
         )
             ContinuationHolder.coroutineExitFrame(frame, debugProcess.debuggerContext.suspendContext)
         else

@@ -55,7 +55,7 @@ data class CoroutineInfoData(
                         }
                     CoroutineNameIdState.instance(ci)
                 } else {
-                    log.warn("Coroutine information not found, ${input?.type()} is not subtype of AbstractCoroutine as expected.")
+                    log.warn("Coroutine agent information not found.")
                     CoroutineNameIdState(DEFAULT_COROUTINE_NAME, "-1", State.UNKNOWN, null)
                 }
             }

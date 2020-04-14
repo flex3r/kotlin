@@ -30,6 +30,9 @@ fun Method.isContinuation() =
 fun Method.isSuspendLambda() =
     isInvokeSuspend() && declaringType().isSuspendLambda()
 
+fun Method.isSuspendMethod() =
+    signature().contains(";Lkotlin/coroutines/Continuation;)")
+
 fun Method.isResumeWith() =
     name() == "resumeWith" && signature() == "(Ljava/lang/Object;)V" && (declaringType().isSuspendLambda() || declaringType().isContinuation())
 
@@ -64,8 +67,8 @@ fun StackFrameProxyImpl.variableValue(variableName: String): ObjectReference? {
 fun StackFrameProxyImpl.completionVariableValue(): ObjectReference? =
     variableValue("completion")
 
-fun StackFrameProxyImpl.completion1VariableValue(): ObjectReference? =
-    variableValue("completion")
+fun StackFrameProxyImpl.continuationVariableValue(): ObjectReference? =
+    variableValue("\$continuation")
 
 fun StackFrameProxyImpl.thisVariableValue(): ObjectReference? =
     this.thisObject()

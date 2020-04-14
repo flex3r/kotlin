@@ -16,10 +16,12 @@ import org.jetbrains.kotlin.idea.debugger.coroutine.coroutineDebuggerTraceEnable
 import org.jetbrains.kotlin.idea.debugger.coroutine.data.*
 import org.jetbrains.kotlin.idea.debugger.coroutine.proxy.mirror.DebugMetadata
 import org.jetbrains.kotlin.idea.debugger.coroutine.proxy.mirror.FieldVariable
+import org.jetbrains.kotlin.idea.debugger.coroutine.util.formatLocation
 import org.jetbrains.kotlin.idea.debugger.coroutine.util.logger
 import org.jetbrains.kotlin.idea.debugger.evaluate.DefaultExecutionContext
 import org.jetbrains.kotlin.idea.debugger.invokeInManagerThread
 import org.jetbrains.kotlin.idea.debugger.safeLocation
+import org.jetbrains.kotlin.idea.debugger.safeMethod
 
 data class ContinuationHolder(val continuation: ObjectReference, val context: DefaultExecutionContext) {
     val log by logger
@@ -139,22 +141,21 @@ data class ContinuationHolder(val continuation: ObjectReference, val context: De
 
         fun lookupContinuation(
             suspendContext: SuspendContextImpl,
-            previousFrame: StackFrameProxyImpl, // invokeSuspend
+            frame: StackFrameProxyImpl, // invokeSuspend
             framesLeft: List<StackFrameProxyImpl>
         ): CoroutinePreflightStackFrame? {
-            val continuation =
-                if (previousFrame.safeLocation()?.method()?.isSuspendLambda() ?: false ||
-                    previousFrame.safeLocation()?.method()?.isContinuation() ?: false
-                )
-                    getThisContinuation(previousFrame)
-                else
-                    null
+            val safeMethod = frame.safeLocation()?.safeMethod() ?: return null
+            val continuation = when {
+                safeMethod.isSuspendLambda() -> getThisContinuation(frame)
+                safeMethod.isSuspendMethod() -> getLVTContinuation(frame)
+                else -> null
+            }
 
             if (continuation != null) {
                 val context = suspendContext.executionContext() ?: return null
                 val coroutineStackTrace = ContinuationHolder(continuation, context).getCoroutineInfoData() ?: return null
                 return CoroutinePreflightStackFrame.preflight(
-                    previousFrame,
+                    frame,
                     coroutineStackTrace,
                     framesLeft
                 )
@@ -162,16 +163,11 @@ data class ContinuationHolder(val continuation: ObjectReference, val context: De
                 return null
         }
 
-        private fun getCompletionContinuation(previousFrame: StackFrameProxyImpl?) =
-            previousFrame?.completion1VariableValue()
+        private fun getLVTContinuation(frame: StackFrameProxyImpl?) =
+            frame?.continuationVariableValue()
 
-        private fun getThisContinuation(previousFrame: StackFrameProxyImpl?): ObjectReference? =
-            previousFrame?.thisVariableValue()
-
-
-        private fun formatLocation(location: Location): String {
-            return "${location.method().name()}:${location.lineNumber()}, ${location.method().declaringType()} in ${location.sourceName()}"
-        }
+        private fun getThisContinuation(frame: StackFrameProxyImpl?): ObjectReference? =
+            frame?.thisVariableValue()
 
         /**
          * Find continuation for the [frame]

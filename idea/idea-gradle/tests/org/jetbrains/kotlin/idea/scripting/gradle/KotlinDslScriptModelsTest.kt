@@ -18,29 +18,32 @@ class KotlinDslScriptModelsTest {
     fun write() {
         val buffer = ByteArrayOutputStream()
 
-        val list = listOf(
-            KotlinDslScriptModel(
-                "a",
-                GradleKotlinScriptConfigurationInputs("b", 1),
-                listOf("c", "a", "b"),
-                listOf("b", "c", "a"),
-                listOf("i", "c", "b"),
-                listOf()
-            ),
-            KotlinDslScriptModel(
-                "a",
-                GradleKotlinScriptConfigurationInputs("b", 1),
-                listOf("c", "a", "b"),
-                listOf("b", "c", "a"),
-                listOf("i", "c", "b"),
-                listOf()
+        val conf = ConfigurationData(
+            listOf("a", "b", "c"),
+            listOf(
+                KotlinDslScriptModel(
+                    "a",
+                    GradleKotlinScriptConfigurationInputs("b", 1),
+                    listOf("c", "a", "b"),
+                    listOf("b", "c", "a"),
+                    listOf("i", "c", "b"),
+                    listOf()
+                ),
+                KotlinDslScriptModel(
+                    "a",
+                    GradleKotlinScriptConfigurationInputs("b", 1),
+                    listOf("c", "a", "b"),
+                    listOf("b", "c", "a"),
+                    listOf("i", "c", "b"),
+                    listOf()
+                )
             )
         )
 
-        writeKotlinDslScriptModels(DataOutputStream(buffer), list)
+        writeKotlinDslScriptModels(DataOutputStream(buffer), conf)
 
         val restored = readKotlinDslScriptModels(DataInputStream(ByteArrayInputStream(buffer.toByteArray())))
 
-        assertEquals(list.joinToString(), restored.joinToString())
+        assertEquals(conf.toString(), restored.toString())
     }
 }

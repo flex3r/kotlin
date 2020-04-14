@@ -6,22 +6,15 @@
 package org.jetbrains.kotlin.idea.scripting.gradle
 
 import com.intellij.openapi.application.ApplicationManager
-import com.intellij.openapi.externalSystem.util.ExternalSystemApiUtil
-import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.projectRoots.Sdk
-import com.intellij.openapi.roots.ModuleRootManager
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.vfs.VirtualFile
-import com.intellij.psi.search.GlobalSearchScope
 import org.jetbrains.kotlin.idea.core.script.ScriptDefinitionsManager
 import org.jetbrains.kotlin.idea.core.script.configuration.ScriptingSupport
 import org.jetbrains.kotlin.idea.core.script.configuration.ScriptingSupportHelper
 import org.jetbrains.kotlin.idea.core.script.configuration.listener.ScriptConfigurationUpdater
 import org.jetbrains.kotlin.idea.core.script.configuration.utils.ScriptClassRootsCache
-import org.jetbrains.kotlin.idea.core.script.configuration.utils.ScriptClassRootsCache.Companion.isAlreadyIndexed
 import org.jetbrains.kotlin.idea.core.script.configuration.utils.ScriptClassRootsIndexer
-import org.jetbrains.kotlin.idea.core.script.configuration.utils.ScriptClassRootsStorage
 import org.jetbrains.kotlin.idea.scripting.gradle.importing.GradleKtsContext
 import org.jetbrains.kotlin.idea.scripting.gradle.importing.KotlinDslScriptModel
 import org.jetbrains.kotlin.idea.scripting.gradle.importing.toScriptConfiguration
@@ -29,32 +22,22 @@ import org.jetbrains.kotlin.psi.KtFile
 import org.jetbrains.kotlin.scripting.resolve.KotlinScriptDefinitionFromAnnotatedTemplate
 import org.jetbrains.kotlin.scripting.resolve.ScriptCompilationConfigurationWrapper
 import org.jetbrains.kotlin.utils.addToStdlib.firstIsInstance
-import org.jetbrains.plugins.gradle.settings.GradleExecutionSettings
-import org.jetbrains.plugins.gradle.settings.GradleProjectSettings
-import org.jetbrains.plugins.gradle.util.GradleConstants
-import java.io.File
 
-internal class Configuration(
-    val context: GradleKtsContext,
-    models: List<KotlinDslScriptModel>
-) {
-    val scripts = models.associateBy { it.file }
-    val sourcePath = models.flatMapTo(mutableSetOf()) { it.sourcePath }
 
-    val classFilePath: MutableSet<String>
+internal data class ConfigurationData(
+    val templateClasspath: List<String>,
+    val models: List<KotlinDslScriptModel>
+)
+
+internal class Configuration(val context: GradleKtsContext, data: ConfigurationData) {
+    val scripts = data.models.associateBy { it.file }
+    val sourcePath = data.models.flatMapTo(mutableSetOf()) { it.sourcePath }
+
+    val classFilePath: MutableSet<String> = mutableSetOf<String>()
 
     init {
-        while (!ScriptDefinitionsManager.getInstance(context.project).isReady()) {
-            Thread.sleep(100)
-        }
-        // TODO gradle classpath
-        val gradleDefinition = ScriptDefinitionsManager.getInstance(context.project).getAllDefinitions().find {
-            (it.asLegacyOrNull<KotlinScriptDefinitionFromAnnotatedTemplate>())?.scriptFilePattern?.pattern == ".*\\.gradle\\.kts"
-        }!! // todo exception
-        val result= hashSetOf<String>()
-        result.addAll(gradleDefinition.asLegacyOrNull<KotlinScriptDefinitionFromAnnotatedTemplate>()!!.templateClasspath.map { it.path })
-        models.flatMapTo(result) { it.classPath }
-        classFilePath = result
+        classFilePath.addAll(data.templateClasspath)
+        data.models.flatMapTo(classFilePath) { it.classPath }
     }
 
     fun scriptModel(file: VirtualFile): KotlinDslScriptModel? {
@@ -81,13 +64,20 @@ class GradleScriptingSupport(val project: Project) : ScriptingSupport() {
     }
 
     fun replace(context: GradleKtsContext, models: List<KotlinDslScriptModel>) {
-        KotlinDslScriptModels.write(project, models)
-
         val old = configuration
-        val newConfiguration = Configuration(context, models)
 
+        val gradleDefinition = ScriptDefinitionsManager.getInstance(context.project).getAllDefinitions().find {
+            (it.asLegacyOrNull<KotlinScriptDefinitionFromAnnotatedTemplate>())?.scriptFilePattern?.pattern == ".*\\.gradle\\.kts"
+        }!!
+        val templateClasspath = gradleDefinition.asLegacyOrNull<KotlinScriptDefinitionFromAnnotatedTemplate>()!!
+            .templateClasspath
+            .map { it.path }
+
+        val data = ConfigurationData(templateClasspath, models)
+        KotlinDslScriptModels.write(project, data)
+
+        val newConfiguration = Configuration(context, data)
         configuration = newConfiguration
-
         configurationChangedCallback(old, newConfiguration)
     }
 
@@ -111,20 +101,11 @@ class GradleScriptingSupport(val project: Project) : ScriptingSupport() {
     }
 
     fun load() {
-        val gradleProjectSettings = ExternalSystemApiUtil.getSettings(project, GradleConstants.SYSTEM_ID)
-            .getLinkedProjectsSettings()
-            .filterIsInstance<GradleProjectSettings>().firstOrNull() ?: return
-
-        val gradleExeSettings = ExternalSystemApiUtil.getExecutionSettings<GradleExecutionSettings>(
-            project,
-            gradleProjectSettings.externalProjectPath,
-            GradleConstants.SYSTEM_ID
+        val data = KotlinDslScriptModels.read(project) ?: return
+        val newConfiguration = Configuration(
+            GradleKtsContext(project) ?: return,
+            data
         )
-        val javaHome = File(gradleExeSettings.javaHome ?: return)
-
-        val models = KotlinDslScriptModels.read(project) ?: return
-        val newConfiguration = Configuration(GradleKtsContext(project, javaHome), models)
-
         configuration = newConfiguration
 
         configurationChangedCallback(null, newConfiguration)

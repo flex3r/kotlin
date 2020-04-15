@@ -27,9 +27,27 @@ if "%_JAVACMD%"=="" set _JAVACMD=java
 rem We use the value of the JAVA_OPTS environment variable if defined
 if "%JAVA_OPTS%"=="" set JAVA_OPTS=-Xmx256M -Xms32M
 
+rem Iterate through arguments and split them into java and kotlin ones
+:loop
+set arg=%1
+if "%arg%" == "" goto end
+
+if "%arg:~0,2%"=="-J" (
+  set JAVA_OPTS=%JAVA_OPTS% "%arg:~2%"
+) else (
+  if "%arg:~0,2%"=="-D" (
+    set JAVA_OPTS=%JAVA_OPTS% %ARG%
+  ) else (
+    set KOTLIN_OPTS=%KOTLIN_OPTS% %ARG%
+  )
+)
+shift
+goto loop
+:end
+
 if not "%_KOTLIN_RUNNER%"=="" (
   "%_JAVACMD%" %JAVA_OPTS% "-Dkotlin.home=%_KOTLIN_HOME%" -cp "%_KOTLIN_HOME%\lib\kotlin-runner.jar" ^
-    org.jetbrains.kotlin.runner.Main %*
+    org.jetbrains.kotlin.runner.Main %KOTLIN_OPTS%
 ) else (
   SET _ADDITIONAL_CLASSPATH=
 
@@ -37,6 +55,7 @@ if not "%_KOTLIN_RUNNER%"=="" (
     set _ADDITIONAL_CLASSPATH=;%_KOTLIN_HOME%\lib\%_KOTLIN_TOOL%
   )
 
+  rem Pass all parameters to the compiler, otherwise, '=' will become a delimeter and -Xassertions=jvm and such will break
   "%_JAVACMD%" %JAVA_OPTS% -noverify -cp "%_KOTLIN_HOME%\lib\kotlin-preloader.jar" ^
     org.jetbrains.kotlin.preloading.Preloader -cp "%_KOTLIN_HOME%\lib\kotlin-compiler.jar%_ADDITIONAL_CLASSPATH%" ^
     %_KOTLIN_COMPILER% %*
